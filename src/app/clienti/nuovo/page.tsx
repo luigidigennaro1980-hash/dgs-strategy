@@ -1,98 +1,88 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import AppLayout from '@/components/layout/AppLayout'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Save, User } from 'lucide-react'
 import Link from 'next/link'
 
-const REGIONI = ['Abruzzo','Basilicata','Calabria','Campania','Emilia-Romagna','Friuli-Venezia Giulia','Lazio','Liguria','Lombardia','Marche','Molise','Piemonte','Puglia','Sardegna','Sicilia','Toscana','Trentino-Alto Adige','Umbria','Valle d\'Aosta','Veneto']
+const REGIONI = ['Abruzzo','Basilicata','Calabria','Campania','Emilia-Romagna','Friuli-Venezia Giulia','Lazio','Liguria','Lombardia','Marche','Molise','Piemonte','Puglia','Sardegna','Sicilia','Toscana','Trentino-Alto Adige','Umbria',"Valle d'Aosta",'Veneto']
 
 export default function NuovoClientePage() {
-  const [cognome, setCognome] = useState('')
-  const [nome, setNome] = useState('')
-  const [sesso, setSesso] = useState('M')
-  const [codiceFiscale, setCodiceFiscale] = useState('')
-  const [dataNascita, setDataNascita] = useState('')
-  const [luogoNascita, setLuogoNascita] = useState('')
-  const [provinciaNascita, setProvinciaNascita] = useState('')
-  const [indirizzoResidenza, setIndirizzoResidenza] = useState('')
-  const [comuneResidenza, setComuneResidenza] = useState('')
-  const [provinciaResidenza, setProvinciaResidenza] = useState('')
-  const [capResidenza, setCapResidenza] = useState('')
-  const [regioneResidenza, setRegioneResidenza] = useState('')
-  const [telefono, setTelefono] = useState('')
-  const [cellulare, setCellulare] = useState('')
-  const [email, setEmail] = useState('')
-  const [note, setNote] = useState('')
-
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [studioId, setStudioId] = useState('')
   const router = useRouter()
-  const supabase = createClient()
+  const studioIdRef = useRef('')
+  const loadingRef = useRef(false)
 
   useEffect(() => {
-    const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
-      const { data: profilo } = await supabase.from('profili').select('studio_id').eq('user_id', user.id).single()
-      if (profilo) setStudioId(profilo.studio_id)
-    }
-    init()
+      supabase.from('profili').select('studio_id').eq('user_id', user.id).single().then(({ data }) => {
+        if (data) studioIdRef.current = data.studio_id
+      })
+    })
   }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setLoading(true)
-    setError('')
+    if (loadingRef.current) return
+    loadingRef.current = true
 
+    const form = e.currentTarget
+    const get = (name: string) => (form.elements.namedItem(name) as HTMLInputElement)?.value || ''
+
+    const supabase = createClient()
     const { data, error } = await supabase.from('clienti').insert({
-      studio_id: studioId,
-      cognome,
-      nome,
-      sesso,
-      codice_fiscale: codiceFiscale.toUpperCase(),
-      data_nascita: dataNascita || null,
-      luogo_nascita: luogoNascita,
-      provincia_nascita: provinciaNascita,
-      indirizzo_residenza: indirizzoResidenza,
-      comune_residenza: comuneResidenza,
-      provincia_residenza: provinciaResidenza,
-      cap_residenza: capResidenza,
-      regione_residenza: regioneResidenza,
-      telefono,
-      cellulare,
-      email,
-      note,
+      studio_id: studioIdRef.current,
+      cognome: get('cognome'),
+      nome: get('nome'),
+      sesso: get('sesso'),
+      codice_fiscale: get('codice_fiscale').toUpperCase(),
+      data_nascita: get('data_nascita') || null,
+      luogo_nascita: get('luogo_nascita'),
+      provincia_nascita: get('provincia_nascita').toUpperCase(),
+      indirizzo_residenza: get('indirizzo_residenza'),
+      comune_residenza: get('comune_residenza'),
+      provincia_residenza: get('provincia_residenza').toUpperCase(),
+      cap_residenza: get('cap_residenza'),
+      regione_residenza: get('regione_residenza'),
+      telefono: get('telefono'),
+      cellulare: get('cellulare'),
+      email: get('email'),
+      note: get('note'),
     }).select().single()
 
-    if (error) { setError('Errore nel salvataggio: ' + error.message); setLoading(false); return }
-    router.push(`/clienti`)
+    loadingRef.current = false
+
+    if (error) {
+      const errEl = document.getElementById('form-error')
+      if (errEl) errEl.textContent = 'Errore: ' + error.message
+      return
+    }
+    router.push('/clienti')
   }
 
-  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div className="card" style={{ marginBottom: '1.25rem' }}>
-      <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-primary)', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--color-border)' }}>{title}</h3>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>{children}</div>
-    </div>
-  )
-
-  const Field = ({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) => (
-    <div style={{ gridColumn: full ? '1/-1' : undefined }}>
-      <label className="label">{label}</label>
-      {children}
-    </div>
-  )
+  const sectionStyle = {
+    background: 'white', border: '1px solid var(--color-border)',
+    borderRadius: 12, padding: '1.5rem', marginBottom: '1.25rem'
+  }
+  const titleStyle = {
+    fontSize: 14, fontWeight: 600, color: 'var(--color-primary)',
+    marginBottom: '1.25rem', paddingBottom: '0.75rem',
+    borderBottom: '1px solid var(--color-border)'
+  }
+  const gridStyle = { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }
+  const labelStyle = { display: 'block', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 4 }
+  const inputStyle = { width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 14, outline: 'none', boxSizing: 'border-box' as const }
 
   return (
     <AppLayout>
       <div style={{ padding: '2rem', maxWidth: 900, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: '1.5rem' }}>
-          <Link href="/clienti" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--color-text-muted)', textDecoration: 'none', fontSize: 14 }}>
+          <Link href="/clienti" style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#64748b', textDecoration: 'none', fontSize: 14 }}>
             <ArrowLeft size={16} /> Clienti
           </Link>
-          <span style={{ color: 'var(--color-border)' }}>/</span>
+          <span style={{ color: '#e2e8f0' }}>/</span>
           <span style={{ fontSize: 14, fontWeight: 500 }}>Nuovo cliente</span>
         </div>
 
@@ -104,75 +94,56 @@ export default function NuovoClientePage() {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <Section title="Dati Anagrafici">
-            <Field label="Cognome *">
-              <input className="input-field" value={cognome} onChange={e => setCognome(e.target.value)} required />
-            </Field>
-            <Field label="Nome *">
-              <input className="input-field" value={nome} onChange={e => setNome(e.target.value)} required />
-            </Field>
-            <Field label="Sesso">
-              <select className="input-field" value={sesso} onChange={e => setSesso(e.target.value)}>
-                <option value="M">Maschile</option>
-                <option value="F">Femminile</option>
-              </select>
-            </Field>
-            <Field label="Codice Fiscale *">
-              <input className="input-field" value={codiceFiscale} onChange={e => setCodiceFiscale(e.target.value.toUpperCase())} maxLength={16} style={{ fontFamily: 'monospace' }} required />
-            </Field>
-            <Field label="Data di nascita">
-              <input type="date" className="input-field" value={dataNascita} onChange={e => setDataNascita(e.target.value)} />
-            </Field>
-            <Field label="Luogo di nascita">
-              <input className="input-field" value={luogoNascita} onChange={e => setLuogoNascita(e.target.value)} />
-            </Field>
-            <Field label="Provincia di nascita">
-              <input className="input-field" value={provinciaNascita} onChange={e => setProvinciaNascita(e.target.value.toUpperCase())} maxLength={2} placeholder="es. NA" />
-            </Field>
-          </Section>
+          <div style={sectionStyle}>
+            <div style={titleStyle}>Dati Anagrafici</div>
+            <div style={gridStyle}>
+              <div><label style={labelStyle}>Cognome *</label><input name="cognome" required style={inputStyle} /></div>
+              <div><label style={labelStyle}>Nome *</label><input name="nome" required style={inputStyle} /></div>
+              <div><label style={labelStyle}>Sesso</label>
+                <select name="sesso" style={inputStyle}>
+                  <option value="M">Maschile</option>
+                  <option value="F">Femminile</option>
+                </select>
+              </div>
+              <div><label style={labelStyle}>Codice Fiscale *</label><input name="codice_fiscale" required maxLength={16} style={{ ...inputStyle, fontFamily: 'monospace', textTransform: 'uppercase' }} /></div>
+              <div><label style={labelStyle}>Data di nascita</label><input name="data_nascita" type="date" style={inputStyle} /></div>
+              <div><label style={labelStyle}>Luogo di nascita</label><input name="luogo_nascita" style={inputStyle} /></div>
+              <div><label style={labelStyle}>Provincia nascita</label><input name="provincia_nascita" maxLength={2} placeholder="es. NA" style={{ ...inputStyle, textTransform: 'uppercase' }} /></div>
+            </div>
+          </div>
 
-          <Section title="Residenza">
-            <Field label="Indirizzo" full>
-              <input className="input-field" value={indirizzoResidenza} onChange={e => setIndirizzoResidenza(e.target.value)} placeholder="Via, numero civico" />
-            </Field>
-            <Field label="Comune">
-              <input className="input-field" value={comuneResidenza} onChange={e => setComuneResidenza(e.target.value)} />
-            </Field>
-            <Field label="Provincia">
-              <input className="input-field" value={provinciaResidenza} onChange={e => setProvinciaResidenza(e.target.value.toUpperCase())} maxLength={2} placeholder="es. NA" />
-            </Field>
-            <Field label="CAP">
-              <input className="input-field" value={capResidenza} onChange={e => setCapResidenza(e.target.value)} maxLength={5} placeholder="es. 80100" />
-            </Field>
-            <Field label="Regione">
-              <select className="input-field" value={regioneResidenza} onChange={e => setRegioneResidenza(e.target.value)}>
-                <option value="">Seleziona regione</option>
-                {REGIONI.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </Field>
-          </Section>
+          <div style={sectionStyle}>
+            <div style={titleStyle}>Residenza</div>
+            <div style={gridStyle}>
+              <div style={{ gridColumn: '1/-1' }}><label style={labelStyle}>Indirizzo</label><input name="indirizzo_residenza" placeholder="Via, numero civico" style={inputStyle} /></div>
+              <div><label style={labelStyle}>Comune</label><input name="comune_residenza" style={inputStyle} /></div>
+              <div><label style={labelStyle}>Provincia</label><input name="provincia_residenza" maxLength={2} placeholder="es. NA" style={{ ...inputStyle, textTransform: 'uppercase' }} /></div>
+              <div><label style={labelStyle}>CAP</label><input name="cap_residenza" maxLength={5} placeholder="es. 80100" style={inputStyle} /></div>
+              <div><label style={labelStyle}>Regione</label>
+                <select name="regione_residenza" style={inputStyle}>
+                  <option value="">Seleziona regione</option>
+                  {REGIONI.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
 
-          <Section title="Recapiti">
-            <Field label="Telefono fisso">
-              <input className="input-field" value={telefono} onChange={e => setTelefono(e.target.value)} />
-            </Field>
-            <Field label="Cellulare">
-              <input className="input-field" value={cellulare} onChange={e => setCellulare(e.target.value)} />
-            </Field>
-            <Field label="Email">
-              <input type="email" className="input-field" value={email} onChange={e => setEmail(e.target.value)} />
-            </Field>
-            <Field label="Note" full>
-              <textarea className="input-field" value={note} onChange={e => setNote(e.target.value)} rows={3} style={{ resize: 'vertical' }} />
-            </Field>
-          </Section>
+          <div style={sectionStyle}>
+            <div style={titleStyle}>Recapiti</div>
+            <div style={gridStyle}>
+              <div><label style={labelStyle}>Telefono fisso</label><input name="telefono" style={inputStyle} /></div>
+              <div><label style={labelStyle}>Cellulare</label><input name="cellulare" style={inputStyle} /></div>
+              <div><label style={labelStyle}>Email</label><input name="email" type="email" style={inputStyle} /></div>
+              <div style={{ gridColumn: '1/-1' }}><label style={labelStyle}>Note</label><textarea name="note" rows={3} style={{ ...inputStyle, resize: 'vertical' }} /></div>
+            </div>
+          </div>
 
-          {error && <p style={{ color: 'var(--color-danger)', fontSize: 14, marginBottom: '1rem' }}>{error}</p>}
+          <p id="form-error" style={{ color: 'var(--color-danger)', fontSize: 14, marginBottom: '1rem' }}></p>
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <Link href="/clienti" className="btn-secondary" style={{ textDecoration: 'none' }}>Annulla</Link>
-            <button type="submit" className="btn-primary" disabled={loading}>
-              <Save size={16} /> {loading ? 'Salvataggio...' : 'Salva cliente'}
+            <Link href="/clienti" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 8, border: '1px solid var(--color-border)', textDecoration: 'none', fontSize: 14, color: 'var(--color-text)' }}>Annulla</Link>
+            <button type="submit" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 8, background: 'var(--color-primary)', color: 'white', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 500 }}>
+              <Save size={16} /> Salva cliente
             </button>
           </div>
         </form>
