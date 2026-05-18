@@ -1,37 +1,29 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import Sidebar from './Sidebar'
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+const AppLayout = memo(function AppLayout({ children }: { children: React.ReactNode }) {
   const [studioNome, setStudioNome] = useState('')
   const [utenteEmail, setUtenteEmail] = useState('')
   const [loading, setLoading] = useState(true)
   const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
+    const supabase = createClient()
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
       setUtenteEmail(user.email || '')
 
-      const { data: studio } = await supabase
-        .from('studi')
-        .select('nome')
-        .eq('id', user.user_metadata?.studio_id)
+      const { data: profilo } = await supabase
+        .from('profili')
+        .select('studio_id, studi(nome)')
+        .eq('user_id', user.id)
         .single()
 
-      if (studio) setStudioNome(studio.nome)
-      else {
-        const { data: profilo } = await supabase
-          .from('profili')
-          .select('studio_id, studi(nome)')
-          .eq('user_id', user.id)
-          .single()
-        if (profilo?.studi) setStudioNome((profilo.studi as any).nome)
-      }
+      if (profilo?.studi) setStudioNome((profilo.studi as any).nome)
       setLoading(false)
     }
     init()
@@ -55,4 +47,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </main>
     </div>
   )
-}
+})
+
+export default AppLayout
