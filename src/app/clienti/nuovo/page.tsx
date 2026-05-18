@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import AppLayout from '@/components/layout/AppLayout'
 import { useRouter } from 'next/navigation'
@@ -9,14 +9,23 @@ import Link from 'next/link'
 const REGIONI = ['Abruzzo','Basilicata','Calabria','Campania','Emilia-Romagna','Friuli-Venezia Giulia','Lazio','Liguria','Lombardia','Marche','Molise','Piemonte','Puglia','Sardegna','Sicilia','Toscana','Trentino-Alto Adige','Umbria','Valle d\'Aosta','Veneto']
 
 export default function NuovoClientePage() {
-  const [form, setForm] = useState({
-    nome: '', cognome: '', codice_fiscale: '',
-    data_nascita: '', luogo_nascita: '', provincia_nascita: '',
-    sesso: 'M',
-    indirizzo_residenza: '', comune_residenza: '', provincia_residenza: '', cap_residenza: '', regione_residenza: '',
-    telefono: '', cellulare: '', email: '',
-    note: ''
-  })
+  const [cognome, setCognome] = useState('')
+  const [nome, setNome] = useState('')
+  const [sesso, setSesso] = useState('M')
+  const [codiceFiscale, setCodiceFiscale] = useState('')
+  const [dataNascita, setDataNascita] = useState('')
+  const [luogoNascita, setLuogoNascita] = useState('')
+  const [provinciaNascita, setProvinciaNascita] = useState('')
+  const [indirizzoResidenza, setIndirizzoResidenza] = useState('')
+  const [comuneResidenza, setComuneResidenza] = useState('')
+  const [provinciaResidenza, setProvinciaResidenza] = useState('')
+  const [capResidenza, setCapResidenza] = useState('')
+  const [regioneResidenza, setRegioneResidenza] = useState('')
+  const [telefono, setTelefono] = useState('')
+  const [cellulare, setCellulare] = useState('')
+  const [email, setEmail] = useState('')
+  const [note, setNote] = useState('')
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [studioId, setStudioId] = useState('')
@@ -33,21 +42,33 @@ export default function NuovoClientePage() {
     init()
   }, [])
 
-  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
     const { data, error } = await supabase.from('clienti').insert({
-      ...form,
       studio_id: studioId,
-      codice_fiscale: form.codice_fiscale.toUpperCase()
+      cognome,
+      nome,
+      sesso,
+      codice_fiscale: codiceFiscale.toUpperCase(),
+      data_nascita: dataNascita || null,
+      luogo_nascita: luogoNascita,
+      provincia_nascita: provinciaNascita,
+      indirizzo_residenza: indirizzoResidenza,
+      comune_residenza: comuneResidenza,
+      provincia_residenza: provinciaResidenza,
+      cap_residenza: capResidenza,
+      regione_residenza: regioneResidenza,
+      telefono,
+      cellulare,
+      email,
+      note,
     }).select().single()
 
     if (error) { setError('Errore nel salvataggio: ' + error.message); setLoading(false); return }
-    router.push(`/clienti/${data.id}`)
+    router.push(`/clienti`)
   }
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -85,46 +106,46 @@ export default function NuovoClientePage() {
         <form onSubmit={handleSubmit}>
           <Section title="Dati Anagrafici">
             <Field label="Cognome *">
-              <input className="input-field" value={form.cognome} onChange={e => set('cognome', e.target.value)} required />
+              <input className="input-field" value={cognome} onChange={e => setCognome(e.target.value)} required />
             </Field>
             <Field label="Nome *">
-              <input className="input-field" value={form.nome} onChange={e => set('nome', e.target.value)} required />
+              <input className="input-field" value={nome} onChange={e => setNome(e.target.value)} required />
             </Field>
             <Field label="Sesso">
-              <select className="input-field" value={form.sesso} onChange={e => set('sesso', e.target.value)}>
+              <select className="input-field" value={sesso} onChange={e => setSesso(e.target.value)}>
                 <option value="M">Maschile</option>
                 <option value="F">Femminile</option>
               </select>
             </Field>
             <Field label="Codice Fiscale *">
-              <input className="input-field" value={form.codice_fiscale} onChange={e => set('codice_fiscale', e.target.value.toUpperCase())} maxLength={16} style={{ fontFamily: 'monospace' }} required />
+              <input className="input-field" value={codiceFiscale} onChange={e => setCodiceFiscale(e.target.value.toUpperCase())} maxLength={16} style={{ fontFamily: 'monospace' }} required />
             </Field>
             <Field label="Data di nascita">
-              <input type="date" className="input-field" value={form.data_nascita} onChange={e => set('data_nascita', e.target.value)} />
+              <input type="date" className="input-field" value={dataNascita} onChange={e => setDataNascita(e.target.value)} />
             </Field>
             <Field label="Luogo di nascita">
-              <input className="input-field" value={form.luogo_nascita} onChange={e => set('luogo_nascita', e.target.value)} />
+              <input className="input-field" value={luogoNascita} onChange={e => setLuogoNascita(e.target.value)} />
             </Field>
             <Field label="Provincia di nascita">
-              <input className="input-field" value={form.provincia_nascita} onChange={e => set('provincia_nascita', e.target.value)} maxLength={2} style={{ textTransform: 'uppercase' }} placeholder="es. NA" />
+              <input className="input-field" value={provinciaNascita} onChange={e => setProvinciaNascita(e.target.value.toUpperCase())} maxLength={2} placeholder="es. NA" />
             </Field>
           </Section>
 
           <Section title="Residenza">
             <Field label="Indirizzo" full>
-              <input className="input-field" value={form.indirizzo_residenza} onChange={e => set('indirizzo_residenza', e.target.value)} placeholder="Via, numero civico" />
+              <input className="input-field" value={indirizzoResidenza} onChange={e => setIndirizzoResidenza(e.target.value)} placeholder="Via, numero civico" />
             </Field>
             <Field label="Comune">
-              <input className="input-field" value={form.comune_residenza} onChange={e => set('comune_residenza', e.target.value)} />
+              <input className="input-field" value={comuneResidenza} onChange={e => setComuneResidenza(e.target.value)} />
             </Field>
             <Field label="Provincia">
-              <input className="input-field" value={form.provincia_residenza} onChange={e => set('provincia_residenza', e.target.value)} maxLength={2} style={{ textTransform: 'uppercase' }} placeholder="es. NA" />
+              <input className="input-field" value={provinciaResidenza} onChange={e => setProvinciaResidenza(e.target.value.toUpperCase())} maxLength={2} placeholder="es. NA" />
             </Field>
             <Field label="CAP">
-              <input className="input-field" value={form.cap_residenza} onChange={e => set('cap_residenza', e.target.value)} maxLength={5} placeholder="es. 80100" />
+              <input className="input-field" value={capResidenza} onChange={e => setCapResidenza(e.target.value)} maxLength={5} placeholder="es. 80100" />
             </Field>
             <Field label="Regione">
-              <select className="input-field" value={form.regione_residenza} onChange={e => set('regione_residenza', e.target.value)}>
+              <select className="input-field" value={regioneResidenza} onChange={e => setRegioneResidenza(e.target.value)}>
                 <option value="">Seleziona regione</option>
                 {REGIONI.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
@@ -133,16 +154,16 @@ export default function NuovoClientePage() {
 
           <Section title="Recapiti">
             <Field label="Telefono fisso">
-              <input className="input-field" value={form.telefono} onChange={e => set('telefono', e.target.value)} />
+              <input className="input-field" value={telefono} onChange={e => setTelefono(e.target.value)} />
             </Field>
             <Field label="Cellulare">
-              <input className="input-field" value={form.cellulare} onChange={e => set('cellulare', e.target.value)} />
+              <input className="input-field" value={cellulare} onChange={e => setCellulare(e.target.value)} />
             </Field>
             <Field label="Email">
-              <input type="email" className="input-field" value={form.email} onChange={e => set('email', e.target.value)} />
+              <input type="email" className="input-field" value={email} onChange={e => setEmail(e.target.value)} />
             </Field>
             <Field label="Note" full>
-              <textarea className="input-field" value={form.note} onChange={e => set('note', e.target.value)} rows={3} style={{ resize: 'vertical' }} />
+              <textarea className="input-field" value={note} onChange={e => setNote(e.target.value)} rows={3} style={{ resize: 'vertical' }} />
             </Field>
           </Section>
 
