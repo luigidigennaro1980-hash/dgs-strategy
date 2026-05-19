@@ -1,9 +1,10 @@
 'use client'
+export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import AppLayout from '@/components/layout/AppLayout'
 import Link from 'next/link'
-import { Plus, Search, FolderOpen, ChevronRight, Filter } from 'lucide-react'
+import { Plus, Search, FolderOpen, ChevronRight } from 'lucide-react'
 
 const statoLabel: Record<string, { label: string; cls: string }> = {
   nuova: { label: 'Nuova', cls: 'badge-gray' },
@@ -31,15 +32,17 @@ export default function PratichePage() {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data: profilo } = await supabase.from('profili').select('studio_id').eq('user_id', user.id).single()
+      const { data: profilo } = await supabase.from('profili').select('studio_id, ruolo').eq('user_id', user.id).single()
       if (!profilo) return
 
-      const { data } = await supabase
-        .from('pratiche')
-        .select('*, clienti(nome, cognome, codice_fiscale, comune_residenza)')
-        .eq('studio_id', profilo.studio_id)
-        .order('created_at', { ascending: false })
+      let query = supabase.from('pratiche').select('*, clienti(nome, cognome, codice_fiscale)').eq('studio_id', profilo.studio_id).order('created_at', { ascending: false })
 
+      // Se non è admin, vede solo le proprie pratiche
+      if (profilo.ruolo !== 'admin') {
+        query = query.eq('operatore_id', user.id)
+      }
+
+      const { data } = await query
       setPratiche(data || [])
       setLoading(false)
     }
@@ -48,11 +51,9 @@ export default function PratichePage() {
 
   const filtrate = pratiche.filter(p => {
     const testo = `${p.clienti?.cognome} ${p.clienti?.nome} ${p.clienti?.codice_fiscale} ${p.numero_rg} ${p.tribunale}`.toLowerCase()
-    return (
-      testo.includes(search.toLowerCase()) &&
+    return testo.includes(search.toLowerCase()) &&
       (filtroStato ? p.stato === filtroStato : true) &&
       (filtroTipo ? p.tipo_prestazione === filtroTipo : true)
-    )
   })
 
   return (
@@ -68,7 +69,6 @@ export default function PratichePage() {
           </Link>
         </div>
 
-        {/* Filtri */}
         <div style={{ display: 'flex', gap: 12, marginBottom: '1.5rem', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
             <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
@@ -120,9 +120,7 @@ export default function PratichePage() {
                     <td style={{ padding: '13px 16px', fontSize: 13, color: 'var(--color-text-muted)' }}>{p.sede_inps || '—'}</td>
                     <td style={{ padding: '13px 16px', fontSize: 13, color: 'var(--color-text-muted)' }}>{p.tribunale || '—'}</td>
                     <td style={{ padding: '13px 16px', fontSize: 13, color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>{p.numero_rg || '—'}</td>
-                    <td style={{ padding: '13px 16px', fontSize: 13, color: 'var(--color-text-muted)' }}>
-                      {p.data_udienza ? new Date(p.data_udienza).toLocaleDateString('it-IT') : '—'}
-                    </td>
+                    <td style={{ padding: '13px 16px', fontSize: 13, color: 'var(--color-text-muted)' }}>{p.data_udienza ? new Date(p.data_udienza).toLocaleDateString('it-IT') : '—'}</td>
                     <td style={{ padding: '13px 16px' }}>
                       <span className={`badge ${statoLabel[p.stato]?.cls || 'badge-gray'}`}>{statoLabel[p.stato]?.label || p.stato}</span>
                     </td>
