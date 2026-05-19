@@ -33,11 +33,15 @@ const allegatiLabel: Record<string, string> = {
 
 export default function NuovaPraticaPage() {
   const [clienti, setClienti] = useState<any[]>([])
-  const [clienteFiltrati, setClientiFiltrati] = useState<any[]>([])
+  const [clientiFiltrati, setClientiFiltrati] = useState<any[]>([])
   const [clienteSelezionato, setClienteSelezionato] = useState<any>(null)
   const [showDropdown, setShowDropdown] = useState(false)
   const [tipoPrestazione, setTipoPrestazione] = useState('accompagnamento')
   const [allegatiChecked, setAllegatiChecked] = useState<Record<string, boolean>>({})
+  const [sediInps, setSediInps] = useState<any[]>([])
+  const [sedeInps, setSedeInps] = useState('')
+  const [sedeInpsIndirizzo, setSedeInpsIndirizzo] = useState('')
+  const [sedeInpsPec, setSedeInpsPec] = useState('')
   const [errore, setErrore] = useState('')
   const studioIdRef = useRef('')
   const router = useRouter()
@@ -50,12 +54,24 @@ export default function NuovaPraticaPage() {
       const { data: profilo } = await supabase.from('profili').select('studio_id').eq('user_id', user.id).single()
       if (!profilo) return
       studioIdRef.current = profilo.studio_id
-      const { data: cl } = await supabase.from('clienti').select('id, nome, cognome, codice_fiscale, cap_residenza, comune_residenza').eq('studio_id', profilo.studio_id).order('cognome')
+      const { data: cl } = await supabase.from('clienti').select('id, nome, cognome, codice_fiscale, provincia_residenza, comune_residenza').eq('studio_id', profilo.studio_id).order('cognome')
       setClienti(cl || [])
       setClientiFiltrati(cl || [])
+      const { data: sedi } = await supabase.from('sedi_inps').select('*').order('denominazione')
+      setSediInps(sedi || [])
     }
     init()
   }, [])
+
+  const cercaSedePerProvincia = (provincia: string) => {
+    if (!provincia || sediInps.length === 0) return
+    const sede = sediInps.find(s => s.provincia === provincia.toUpperCase())
+    if (sede) {
+      setSedeInps(sede.denominazione)
+      setSedeInpsIndirizzo(sede.indirizzo + ', ' + sede.cap + ' ' + sede.comune + ' (' + sede.provincia + ')')
+      setSedeInpsPec(sede.pec || '')
+    }
+  }
 
   const handleSearchCliente = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.toLowerCase()
@@ -68,6 +84,7 @@ export default function NuovaPraticaPage() {
     setShowDropdown(false)
     const input = document.getElementById('search-cliente') as HTMLInputElement
     if (input) input.value = `${c.cognome} ${c.nome}`
+    if (c.provincia_residenza) cercaSedePerProvincia(c.provincia_residenza)
   }
 
   const toggleAllegato = (k: string) => {
@@ -87,9 +104,9 @@ export default function NuovaPraticaPage() {
       cliente_id: clienteSelezionato.id,
       tipo_prestazione: tipoPrestazione,
       stato: get('stato'),
-      sede_inps: get('sede_inps'),
-      sede_inps_indirizzo: get('sede_inps_indirizzo'),
-      sede_inps_pec: get('sede_inps_pec'),
+      sede_inps: sedeInps,
+      sede_inps_indirizzo: sedeInpsIndirizzo,
+      sede_inps_pec: sedeInpsPec,
       tribunale: get('tribunale'),
       numero_rg: get('numero_rg'),
       data_deposito: get('data_deposito') || null,
@@ -141,12 +158,13 @@ export default function NuovaPraticaPage() {
             <div style={{ position: 'relative' }}>
               <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
               <input id="search-cliente" style={{ ...s, paddingLeft: 36 }} placeholder="Cerca per nome o codice fiscale..." onChange={handleSearchCliente} onFocus={() => setShowDropdown(true)} autoComplete="off" />
-              {showDropdown && clienteFiltrati.length > 0 && (
+              {showDropdown && clientiFiltrati.length > 0 && (
                 <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: 'white', border: '1px solid var(--color-border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', maxHeight: 200, overflowY: 'auto', marginTop: 4 }}>
-                  {clienteFiltrati.slice(0, 8).map(c => (
+                  {clientiFiltrati.slice(0, 8).map(c => (
                     <div key={c.id} onMouseDown={() => selezionaCliente(c)} style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: 14 }}>
                       <strong>{c.cognome} {c.nome}</strong>
                       <span style={{ color: '#64748b', marginLeft: 8, fontSize: 12, fontFamily: 'monospace' }}>{c.codice_fiscale}</span>
+                      {c.comune_residenza && <span style={{ color: '#64748b', marginLeft: 8, fontSize: 12 }}>— {c.comune_residenza} ({c.provincia_residenza})</span>}
                     </div>
                   ))}
                 </div>
@@ -154,7 +172,7 @@ export default function NuovaPraticaPage() {
             </div>
             {clienteSelezionato && (
               <div style={{ marginTop: 10, padding: '10px 14px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, fontSize: 13 }}>
-                ✓ <strong>{clienteSelezionato.cognome} {clienteSelezionato.nome}</strong> — CF: {clienteSelezionato.codice_fiscale}
+                ✓ <strong>{clienteSelezionato.cognome} {clienteSelezionato.nome}</strong> — CF: {clienteSelezionato.codice_fiscale} — Prov: {clienteSelezionato.provincia_residenza}
               </div>
             )}
           </div>
@@ -181,13 +199,25 @@ export default function NuovaPraticaPage() {
             </div>
           </div>
 
-          {/* Dati INPS */}
+          {/* Dati INPS — compilati automaticamente */}
           <div style={sectionStyle}>
-            <div style={titleStyle}>Dati INPS</div>
+            <div style={titleStyle}>
+              Dati INPS
+              {sedeInps && <span style={{ fontSize: 11, fontWeight: 400, color: '#16a34a', marginLeft: 8 }}>✓ Rilevata automaticamente dalla provincia del cliente</span>}
+            </div>
             <div style={gridStyle}>
-              <div style={{ gridColumn: '1/-1' }}><label style={labelStyle}>Sede INPS convenuta</label><input name="sede_inps" style={s} placeholder="Es. INPS Filiale di Roma Casilino" /></div>
-              <div style={{ gridColumn: '1/-1' }}><label style={labelStyle}>Indirizzo sede INPS</label><input name="sede_inps_indirizzo" style={s} /></div>
-              <div style={{ gridColumn: '1/-1' }}><label style={labelStyle}>PEC sede INPS</label><input name="sede_inps_pec" style={s} placeholder="Es. notifica.attigiudiziari.roma@postacert.inps.gov.it" /></div>
+              <div style={{ gridColumn: '1/-1' }}>
+                <label style={labelStyle}>Sede INPS convenuta</label>
+                <input style={s} value={sedeInps} onChange={e => setSedeInps(e.target.value)} placeholder="Compilata automaticamente dalla provincia del cliente" />
+              </div>
+              <div style={{ gridColumn: '1/-1' }}>
+                <label style={labelStyle}>Indirizzo sede INPS</label>
+                <input style={s} value={sedeInpsIndirizzo} onChange={e => setSedeInpsIndirizzo(e.target.value)} />
+              </div>
+              <div style={{ gridColumn: '1/-1' }}>
+                <label style={labelStyle}>PEC sede INPS</label>
+                <input style={s} value={sedeInpsPec} onChange={e => setSedeInpsPec(e.target.value)} />
+              </div>
               <div><label style={labelStyle}>Data domanda INPS</label><input name="data_deposito" type="date" style={s} /></div>
               <div><label style={labelStyle}>Numero Domus</label><input name="numero_domus" style={s} placeholder="Es. 9153000557739" /></div>
               <div><label style={labelStyle}>Data visita commissione</label><input name="data_visita" type="date" style={s} /></div>
